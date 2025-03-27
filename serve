@@ -1,0 +1,68 @@
+import socket
+import logging
+
+# 配置日志记录
+logging.basicConfig(filename='server.log', level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# 模拟用户账户数据，实际应从数据文件读取
+user_accounts = {
+    "123456": {"password": "1234", "balance": 1000}
+}
+
+def handle_connection(client_socket):
+    try:
+        # 接收HELO消息
+        data = client_socket.recv(1024).decode('utf-8')
+        if data.startswith("HELO"):
+            userid = data.split("<")[1].rstrip(">")
+            logging.info(f"Received HELO from user {userid}")
+            client_socket.send("500 sp AUTH REQUIRED!".encode('utf-8'))
+
+            # 接收PASS消息
+            data = client_socket.recv(1024).decode('utf-8')
+            if data.startswith("PASS"):
+                password = data.split("<")[1].rstrip(">")
+                if userid in user_accounts and user_accounts[userid]["password"] == password:
+                    client_socket.send("525 sp OK!".encode('utf-8'))
+                    while True:
+                        data = client_socket.recv(1024).decode('utf-8')
+                        if data == "BALA":
+                            balance = user_accounts[userid]["balance"]
+                            response = f"AMNT:{balance}"
+                            client_socket.send(response.encode('utf-8'))
+                        elif data.startswith("WDRA"):
+                            amount = int(data.split("<")[1].rstrip(">"))
+                            if amount <= user_accounts[userid]["balance"]:
+                                user_accounts[userid]["balance"] -= amount
+                                client_socket.send("525 sp OK!".encode('utf-8'))
+                                logging.info(f"User {userid} withdrew {amount}, new balance: {user_accounts[userid]['balance']}")
+                            else:
+                                client_socket.send("401 sp ERROR!".encode('utf-8'))
+                                logging.error(f"User {userid} attempted to withdraw {amount} but insufficient funds")
+                        elif data == "BYE":
+                            client_socket.send("BYE".encode('utf-8'))
+                            logging.info(f"User {userid} ended session")
+                            break
+                else:
+                    client_socket.send("401 sp ERROR!".encode('utf-8'))
+                    logging.error(f"Invalid password for user {userid}")
+    except Exception as e:
+        logging.error(f"Error handling connection: {e}")
+    finally:
+        client_socket.close()
+
+
+def main():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('localhost', 2525))
+    server_socket.listen(5)
+    logging.info("Server started, listening on port 2525")
+    while True:
+        client_socket, client_address = server_socket.accept()
+        logging.info(f"Accepted connection from {client_address}")
+        handle_connection(client_socket)
+
+
+if __name__ == "__main__":
+    main()
