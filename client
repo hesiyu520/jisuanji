@@ -1,0 +1,95 @@
+import socket
+import tkinter as tk
+from tkinter import messagebox
+
+def send_message(message):
+    try:
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect(('localhost', 2525))
+        client_socket.send(message.encode('utf-8'))
+        response = client_socket.recv(1024).decode('utf-8')
+        client_socket.close()
+        return response
+    except Exception as e:
+        messagebox.showerror("Error", f"Connection error: {e}")
+        return None
+
+
+def helo_action():
+    userid = userid_entry.get()
+    message = f"HELO <{userid}>"
+    response = send_message(message)
+    if response == "500 sp AUTH REQUIRED!":
+        messagebox.showinfo("Info", "Please enter your password")
+    else:
+        messagebox.showerror("Error", "Invalid response from server")
+
+
+def pass_action():
+    password = password_entry.get()
+    message = f"PASS <{password}>"
+    response = send_message(message)
+    if response == "525 sp OK!":
+        messagebox.showinfo("Info", "Password accepted. You can perform operations.")
+    else:
+        messagebox.showerror("Error", "Invalid password or response from server")
+
+
+def bala_action():
+    message = "BALA"
+    response = send_message(message)
+    if response.startswith("AMNT:"):
+        balance = response.split(":")[1]
+        messagebox.showinfo("Balance", f"Your balance is: {balance}")
+    else:
+        messagebox.showerror("Error", "Failed to retrieve balance")
+
+
+def wdra_action():
+    amount = amount_entry.get()
+    try:
+        amount = int(amount)
+        message = f"WDRA <{amount}>"
+        response = send_message(message)
+        if response == "525 sp OK!":
+            messagebox.showinfo("Success", "Withdrawal successful")
+        elif response == "401 sp ERROR!":
+            messagebox.showerror("Error", "Insufficient funds")
+        else:
+            messagebox.showerror("Error", "Invalid response from server")
+    except ValueError:
+        messagebox.showerror("Error", "Please enter a valid amount")
+
+
+def bye_action():
+    message = "BYE"
+    response = send_message(message)
+    if response == "BYE":
+        messagebox.showinfo("Info", "Session ended")
+        root.destroy()
+    else:
+        messagebox.showerror("Error", "Invalid response from server")
+
+
+root = tk.Tk()
+root.title("ATM Client")
+
+tk.Label(root, text="User ID:").grid(row=0, column=0)
+userid_entry = tk.Entry(root)
+userid_entry.grid(row=0, column=1)
+
+tk.Label(root, text="Password:").grid(row=1, column=0)
+password_entry = tk.Entry(root, show="*")
+password_entry.grid(row=1, column=1)
+
+tk.Label(root, text="Amount (for withdrawal):").grid(row=2, column=0)
+amount_entry = tk.Entry(root)
+amount_entry.grid(row=2, column=1)
+
+tk.Button(root, text="HELO", command=helo_action).grid(row=3, column=0)
+tk.Button(root, text="PASS", command=pass_action).grid(row=3, column=1)
+tk.Button(root, text="BALA", command=bala_action).grid(row=4, column=0)
+tk.Button(root, text="WDRA", command=wdra_action).grid(row=4, column=1)
+tk.Button(root, text="BYE", command=bye_action).grid(row=5, column=0)
+
+root.mainloop()
